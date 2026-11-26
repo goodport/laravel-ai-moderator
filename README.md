@@ -103,6 +103,33 @@ $result->meta();         // model, provider, pass, invocation id, duration, trac
 $result->toArray();
 ```
 
+## Application entry point
+
+`AiModeration` wraps the common `check()->input()->language()->audit()->run()` sequence. Every method returns `Result`.
+
+```php
+use Goodport\AiModerator\AiModeration;
+
+$result = app(AiModeration::class)->text(
+    'post_body',
+    $post->body,
+    actor: $user,
+    subject: $post,
+    requestUrl: request()->fullUrl(),
+    language: 'en',
+);
+```
+
+Available methods:
+
+- `text($check, string $text, ...)`;
+- `image($check, string $imageUrl, ...)`;
+- `checklist($check, array $input, ...)`;
+- `classify($check, array $input, ...)`;
+- `run($check, array $input, ...)`.
+
+The check key may be a string or a string-backed `BackedEnum`. `actor` and `subject` are optional Eloquent models; their `getMorphClass()` and key are stored in the audit context. The package does not call `Auth`, read the current request, or know application models. Pass `requestUrl` explicitly. If `language` is omitted, the package does not call `language()` and keeps its normal check → profile → defaults → `auto` → application locale resolution.
+
 ## Input resolvers
 
 For anything beyond a simple array, implement `InputResolver`:

@@ -27,6 +27,7 @@ database/migrations/           moderation audit table
 src/
   AiModeratorServiceProvider.php
   AiModeratorManager.php
+  AiModeration.php
   Facades/AiModerator.php
   Agents/                      internal agent, strict agent, and agent runner
   Audit/                       audit context, recorder, read repository
@@ -56,6 +57,8 @@ tests/
 - `Laravel\Ai\Contracts\Agent` + `HasStructuredOutput` + `HasMiddleware` — a custom agent that owns its instructions, schema, and middleware.
 
 `AiModeratorManager` is the only container binding that callers use through the `AiModerator` facade. Internal collaborators are constructed by the container or passed explicitly.
+
+`AiModeration` is the application-facing convenience entry point. It resolves string or `BackedEnum` keys, maps actor/subject models to audit context, and returns `Result`. It never calls `Auth`, reads the current request, or knows application models.
 
 ## Journal and resilience integration
 
