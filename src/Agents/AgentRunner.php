@@ -5,6 +5,7 @@ namespace Goodport\AiModerator\Agents;
 use Goodport\AiModerator\Checks\CheckDefinition;
 use Goodport\AiModerator\Config\InvalidConfigurationException;
 use Goodport\AiModerator\Input\NormalizedInput;
+use Goodport\AiModerator\Journal\JournalReplay;
 use Goodport\AiModerator\Prompt\DefaultPromptBuilder;
 use Goodport\AiModerator\Prompt\PromptBuilder;
 use Goodport\AiModerator\Prompt\PromptContext;
@@ -19,6 +20,7 @@ final class AgentRunner
     public function __construct(
         private readonly SchemaBuilder $schemaBuilder,
         private readonly DefaultPromptBuilder $defaultPromptBuilder,
+        private readonly JournalReplay $journal,
     ) {}
 
     public function run(
@@ -85,8 +87,24 @@ final class AgentRunner
         return new ModerationAgent(
             instructions: $promptBuilder->system($context),
             schema: $schema,
-            middleware: $check->config->middleware,
+            middleware: $this->middleware($check),
         );
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function middleware(CheckDefinition $check): array
+    {
+        $middleware = $check->config->middleware;
+
+        foreach ($this->journal->middlewareFor($check) as $item) {
+            if (! in_array($item, $middleware, true)) {
+                $middleware[] = $item;
+            }
+        }
+
+        return $middleware;
     }
 
     private function customAgent(CheckDefinition $check, string $agentClass): Agent

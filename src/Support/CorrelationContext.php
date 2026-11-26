@@ -10,7 +10,14 @@ final class CorrelationContext
     /**
      * @var array<int, string>
      */
-    private const KEYS = ['ai.trace_id', 'ai.check', 'ai.pass'];
+    private const KEYS = [
+        'ai.trace_id',
+        'ai.check',
+        'ai.pass',
+        'ai.journal.fresh',
+        'ai.journal.ttl',
+        'ai.journal.scope',
+    ];
 
     /**
      * Run a callback with AI correlation keys and restore the previous context afterwards.

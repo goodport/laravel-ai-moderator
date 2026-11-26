@@ -8,6 +8,7 @@ use Goodport\AiModerator\Checks\CheckDefinition;
 use Goodport\AiModerator\Checks\CheckKind;
 use Goodport\AiModerator\Checks\FailureMode;
 use Goodport\AiModerator\Input\NormalizedInput;
+use Goodport\AiModerator\Journal\JournalReplay;
 use Goodport\AiModerator\Responses\InvalidResponseException;
 use Goodport\AiModerator\Responses\ParsedResponse;
 use Goodport\AiModerator\Responses\ResponseParser;
@@ -21,6 +22,7 @@ final class CheckRunner
     public function __construct(
         private readonly AgentRunner $agentRunner,
         private readonly ResponseParser $responseParser,
+        private readonly JournalReplay $journalReplay,
     ) {}
 
     public function run(
@@ -36,6 +38,7 @@ final class CheckRunner
     ): PassResult {
         return CorrelationContext::run(
             [
+                ...$this->journalReplay->context(),
                 'ai.trace_id' => $traceId,
                 'ai.check' => $check->key(),
                 'ai.pass' => $pass,

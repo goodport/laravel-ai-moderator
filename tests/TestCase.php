@@ -2,6 +2,7 @@
 
 namespace Goodport\AiModerator\Tests;
 
+use Goodport\AiJournal\AiJournalServiceProvider;
 use Goodport\AiModerator\AiModeratorServiceProvider;
 use Laravel\Ai\AiServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -15,6 +16,7 @@ abstract class TestCase extends Orchestra
     {
         return [
             AiServiceProvider::class,
+            AiJournalServiceProvider::class,
             AiModeratorServiceProvider::class,
         ];
     }
@@ -23,6 +25,8 @@ abstract class TestCase extends Orchestra
     {
         $app['config']->set('ai-moderator.defaults.provider', 'openai');
         $app['config']->set('ai-moderator.defaults.model', 'gpt-test');
+        $app['config']->set('ai-journal.enabled', false);
+        $app['config']->set('ai-moderator.journal.replay.enabled', false);
     }
 
     /**

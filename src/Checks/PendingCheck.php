@@ -13,6 +13,7 @@ use Goodport\AiModerator\Input\NormalizedInput;
 use Goodport\AiModerator\Results\PassResult;
 use Goodport\AiModerator\Results\Result;
 use Goodport\AiModerator\Results\ResultState;
+use Goodport\AiModerator\Support\CorrelationContext;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Str;
 
@@ -21,6 +22,8 @@ final class PendingCheck
     private InputResolver|array|null $input = null;
 
     private ?string $language = null;
+
+    private bool $fresh = false;
 
     public function __construct(
         private readonly string $key,
@@ -45,7 +48,21 @@ final class PendingCheck
         return $this;
     }
 
+    public function fresh(): self
+    {
+        $this->fresh = true;
+
+        return $this;
+    }
+
     public function run(): Result
+    {
+        $context = $this->fresh ? ['ai.journal.fresh' => true] : [];
+
+        return CorrelationContext::run($context, fn (): Result => $this->execute());
+    }
+
+    private function execute(): Result
     {
         $traceId = $this->traceId ?? (string) Str::uuid();
 

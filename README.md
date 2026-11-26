@@ -323,19 +323,50 @@ Extension points:
 - `agent` — a custom `Agent` that owns its instructions and schema. The package still builds the user prompt and attachments. The check's `prompt_builder` and middleware are ignored for that pass.
 - `details_schema` — one level of additional structured output for class-based checks.
 
-## Call logging and caching
+## Journal and replay
 
-The package does not store AI calls. Any `laravel/ai` agent middleware can be attached through the `middleware` option, for example to log calls or reuse a cached response:
+The package depends on `goodport/laravel-ai-journal`. Composer installs both packages, Laravel registers both providers, and the journal migrations are loaded automatically. Every moderation call is recorded without application code.
+
+Replay is enabled by default. For a built-in `ModerationAgent`, the package automatically attaches the journal replay middleware. When the same check receives the same fingerprint within the TTL, the successful step is reused without a provider call.
+
+Configuration:
 
 ```php
-'defaults' => [
-    'middleware' => [
-        \App\Ai\Middleware\LogCalls::class,
+'journal' => [
+    'replay' => [
+        'enabled' => true,
+        'ttl' => 86400,
+        'scope' => null,
+        'always_fresh_checks' => [],
     ],
 ],
 ```
 
-The package only passes the middleware to the agent. It does not depend on a particular logging or caching implementation.
+- `replay.enabled` controls automatic replay integration.
+- `replay.ttl` is the number of seconds a stored response remains reusable. `0` disables replay.
+- `replay.scope` isolates stored responses, for example per tenant. `null` keeps the application's `Context` scope.
+- `always_fresh_checks` lists check keys that must always call the provider again.
+
+To force a new request for one run, call `fresh()`:
+
+```php
+AiModerator::check('post_body')
+    ->input(['body' => $body])
+    ->fresh()
+    ->run();
+```
+
+The journal fingerprint includes `ai.check` and `ai.pass`, so separate checks and the first/second passes do not reuse each other's responses.
+
+Custom agents supplied through the `agent` option keep their own middleware. The journal still records their calls, but automatic replay is only attached to the built-in `ModerationAgent`. A custom agent can attach `ReplayRecordedStep` itself or opt out of replay.
+
+The journal package also owns capture settings, redaction, cost calculation, retention, and its own read API. Publish its config when those settings need to be changed:
+
+```bash
+php artisan vendor:publish --tag=ai-journal-config
+```
+
+Any other `laravel/ai` agent middleware can still be attached through the check `middleware` option.
 
 ## Testing
 

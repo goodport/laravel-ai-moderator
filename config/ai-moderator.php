@@ -31,6 +31,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Journal
+    |--------------------------------------------------------------------------
+    |
+    | The journal package records calls automatically. These settings control
+    | the automatic replay of successful moderation steps. TTL is in seconds;
+    | a zero TTL disables replay. Checks listed in always_fresh_checks always
+    | call the provider again.
+    |
+    */
+
+    'journal' => [
+        'replay' => [
+            'enabled' => true,
+            'ttl' => 86400,
+            'scope' => null,
+            'always_fresh_checks' => [],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Profiles
     |--------------------------------------------------------------------------
     |

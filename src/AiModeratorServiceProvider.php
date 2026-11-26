@@ -3,6 +3,7 @@
 namespace Goodport\AiModerator;
 
 use Goodport\AiModerator\Config\CheckRegistry;
+use Goodport\AiModerator\Journal\JournalReplay;
 use Illuminate\Support\ServiceProvider;
 
 final class AiModeratorServiceProvider extends ServiceProvider
@@ -12,6 +13,7 @@ final class AiModeratorServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/ai-moderator.php', 'ai-moderator');
 
         $this->app->singleton(CheckRegistry::class);
+        $this->app->singleton(JournalReplay::class);
         $this->app->singleton(AiModeratorManager::class);
     }
 

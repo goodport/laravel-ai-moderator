@@ -11,6 +11,11 @@ final class InvalidConfigurationException extends InvalidArgumentException
         return new self("Invalid configuration for check [{$check}] at [{$field}]: {$message}");
     }
 
+    public static function invalidSetting(string $key, string $message): self
+    {
+        return new self("Invalid configuration for [{$key}]: {$message}");
+    }
+
     public static function unknownCheck(string $key): self
     {
         return new self("Check [{$key}] is not configured.");

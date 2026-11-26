@@ -16,7 +16,7 @@ The package turns declarative checks into a complete AI moderation pipeline on t
 8. optionally run a second pass and merge both results;
 9. return one `Result`.
 
-The package does not know domain models, does not query the database, and does not persist AI calls.
+The package does not know domain models and does not query domain tables. It depends on `goodport/laravel-ai-journal`, which records AI calls and can replay successful steps.
 
 ## Directory map
 
@@ -31,6 +31,7 @@ src/
   Config/                      config merge, validation, registry
   Decision/                    decision rules, merger, check runner
   Input/                       input resolver, normalization, truncation
+  Journal/                     journal replay integration
   Policies/                    policy runner and pending policy
   Prompt/                      prompt contracts and default builder
   Responses/                   structured response parsing
@@ -52,13 +53,22 @@ tests/
 
 `AiModeratorManager` is the only container binding that callers use through the `AiModerator` facade. Internal collaborators are constructed by the container or passed explicitly.
 
+## Journal integration
+
+- `JournalReplay` reads `ai-moderator.journal.replay` configuration.
+- `AgentRunner` appends `ReplayRecordedStep` to built-in `ModerationAgent` middleware when replay is enabled and the check is not in `always_fresh_checks`.
+- `CheckRunner` adds `ai.journal.ttl` and the configured scope to `Context` for each pass.
+- `PendingCheck::fresh()` adds `ai.journal.fresh` for one run.
+- Custom agents supplied through the `agent` option keep their own middleware; automatic replay is not injected into them.
+- Journal logging itself is registered by the journal service provider and works for all agent calls.
+
 ## Rules
 
-- The moderator never depends on external logging or caching packages. It exposes Laravel `Context` keys `ai.trace_id`, `ai.check`, and `ai.pass` so any listener can correlate calls.
+- The moderator depends on `goodport/laravel-ai-journal` for recording and replay. It exposes Laravel `Context` keys `ai.trace_id`, `ai.check`, `ai.pass`, and journal replay keys for correlation.
 - A provider or response failure becomes `undecided` unless `on_error` is `throw`. It is never treated as approved.
 - A missing required input field or an invalid configuration throws immediately.
 - Configuration is validated on resolve, not on boot.
-- The package has no migrations, models, jobs, or UI.
+- The moderator itself has no migrations, models, jobs, or UI; the journal dependency owns its tables and models.
 - Public API is stable within the major version.
 
 ## Tests
@@ -68,4 +78,4 @@ composer test
 composer format
 ```
 
-Feature tests use `ModerationAgent::fake()` and `ModerationAgent::assertPrompted()`. They do not use a database.
+Feature tests use `ModerationAgent::fake()` and `ModerationAgent::assertPrompted()`. Journal integration tests use an in-memory SQLite database.
