@@ -7,6 +7,7 @@ use Goodport\AiModerator\Decision\MergeStrategy;
 use Goodport\AiModerator\Decision\SecondPassTrigger;
 use Goodport\AiModerator\Prompt\PromptBuilder;
 use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\HasMiddleware;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 
 final class RuntimeConfigValidator
@@ -66,8 +67,16 @@ final class RuntimeConfigValidator
             throw InvalidConfigurationException::invalid($key, $path, 'must be an existing class name.');
         }
 
-        if (! is_subclass_of($agent, Agent::class) || ! is_subclass_of($agent, HasStructuredOutput::class)) {
-            throw InvalidConfigurationException::invalid($key, $path, 'must implement Agent and HasStructuredOutput.');
+        if (
+            ! is_subclass_of($agent, Agent::class)
+            || ! is_subclass_of($agent, HasStructuredOutput::class)
+            || ! is_subclass_of($agent, HasMiddleware::class)
+        ) {
+            throw InvalidConfigurationException::invalid(
+                $key,
+                $path,
+                'must implement Agent, HasStructuredOutput, and HasMiddleware.',
+            );
         }
     }
 

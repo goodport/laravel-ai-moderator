@@ -32,6 +32,7 @@ final class CustomCheck implements Check
             role: 'Custom role.',
             provider: 'openai',
             model: 'gpt-test',
+            strict: false,
             timeout: 60,
             middleware: [],
             agent: null,

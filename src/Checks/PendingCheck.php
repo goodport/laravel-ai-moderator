@@ -2,6 +2,8 @@
 
 namespace Goodport\AiModerator\Checks;
 
+use Goodport\AiModerator\Audit\ModerationAuditContext;
+use Goodport\AiModerator\Audit\ModerationAuditRecorder;
 use Goodport\AiModerator\Config\CheckRegistry;
 use Goodport\AiModerator\Decision\CheckRunner;
 use Goodport\AiModerator\Decision\SecondPassMerger;
@@ -16,6 +18,7 @@ use Goodport\AiModerator\Results\ResultState;
 use Goodport\AiModerator\Support\CorrelationContext;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Str;
+use Throwable;
 
 final class PendingCheck
 {
@@ -25,12 +28,21 @@ final class PendingCheck
 
     private bool $fresh = false;
 
+    private ?ModerationAuditContext $auditContext = null;
+
+    private ?PassResult $firstPass = null;
+
+    private ?PassResult $secondPass = null;
+
+    private ?string $currentTraceId = null;
+
     public function __construct(
         private readonly string $key,
         private readonly CheckRegistry $registry,
         private readonly InputNormalizer $inputNormalizer,
         private readonly CheckRunner $runner,
         private readonly SecondPassMerger $merger,
+        private readonly ModerationAuditRecorder $auditRecorder,
         private readonly ?string $traceId = null,
     ) {}
 
@@ -55,16 +67,61 @@ final class PendingCheck
         return $this;
     }
 
+    public function audit(ModerationAuditContext $context): self
+    {
+        $this->auditContext = $context;
+
+        return $this;
+    }
+
     public function run(): Result
     {
         $context = $this->fresh ? ['ai.journal.fresh' => true] : [];
 
-        return CorrelationContext::run($context, fn (): Result => $this->execute());
+        return CorrelationContext::run($context, function (): Result {
+            $this->firstPass = null;
+            $this->secondPass = null;
+            $this->currentTraceId = null;
+
+            try {
+                $result = $this->execute();
+            } catch (Throwable $exception) {
+                $this->recordFailure($exception);
+
+                throw $exception;
+            }
+
+            $this->auditRecorder->record(
+                $result,
+                $this->auditContext,
+                $this->firstPass,
+                $this->secondPass,
+            );
+
+            return $result;
+        });
+    }
+
+    private function recordFailure(Throwable $exception): void
+    {
+        try {
+            $this->auditRecorder->recordFailure(
+                $this->key,
+                $this->currentTraceId ?? $this->traceId ?? (string) Str::uuid(),
+                $exception,
+                $this->auditContext,
+                $this->firstPass,
+                $this->secondPass,
+            );
+        } catch (Throwable $auditException) {
+            report($auditException);
+        }
     }
 
     private function execute(): Result
     {
-        $traceId = $this->traceId ?? (string) Str::uuid();
+        $this->currentTraceId = $this->traceId ?? (string) Str::uuid();
+        $traceId = $this->currentTraceId;
 
         if (! $this->registry->isEnabled($this->key)) {
             return Result::skippedResult($this->key, $traceId);
@@ -94,6 +151,8 @@ final class PendingCheck
             $check->config->timeout,
             $traceId,
         );
+
+        $this->firstPass = $first;
 
         $final = $this->secondPass($check, $input, $language, $first, $traceId);
 
@@ -133,6 +192,8 @@ final class PendingCheck
             $secondPass->timeout ?? $check->config->timeout,
             $traceId,
         );
+
+        $this->secondPass = $second;
 
         return $this->merger->merge($first, $second, $secondPass->merge);
     }

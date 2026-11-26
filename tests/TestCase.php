@@ -4,11 +4,15 @@ namespace Goodport\AiModerator\Tests;
 
 use Goodport\AiJournal\AiJournalServiceProvider;
 use Goodport\AiModerator\AiModeratorServiceProvider;
+use Goodport\AiResilience\AiResilienceServiceProvider;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Ai\AiServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class TestCase extends Orchestra
 {
+    use RefreshDatabase;
+
     /**
      * @return array<int, class-string>
      */
@@ -17,16 +21,27 @@ abstract class TestCase extends Orchestra
         return [
             AiServiceProvider::class,
             AiJournalServiceProvider::class,
+            AiResilienceServiceProvider::class,
             AiModeratorServiceProvider::class,
         ];
     }
 
     protected function defineEnvironment($app): void
     {
+        $app['config']->set('database.default', 'testing');
+        $app['config']->set('database.connections.testing', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]);
         $app['config']->set('ai-moderator.defaults.provider', 'openai');
         $app['config']->set('ai-moderator.defaults.model', 'gpt-test');
+        $app['config']->set('ai-moderator.defaults.strict', false);
         $app['config']->set('ai-journal.enabled', false);
         $app['config']->set('ai-moderator.journal.replay.enabled', false);
+        $app['config']->set('ai-resilience.limits.enabled', false);
+        $app['config']->set('ai-resilience.retries.enabled', false);
     }
 
     /**

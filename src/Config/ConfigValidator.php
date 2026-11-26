@@ -80,6 +80,10 @@ final class ConfigValidator
         if (isset($config['enabled']) && ! is_bool($config['enabled'])) {
             $this->fail($key, 'enabled', 'must be a boolean.');
         }
+
+        if (isset($config['strict']) && ! is_bool($config['strict'])) {
+            $this->fail($key, 'strict', 'must be a boolean.');
+        }
     }
 
     /**
@@ -89,7 +93,7 @@ final class ConfigValidator
     {
         $allowed = [
             'kind', 'enabled', 'input', 'instructions', 'language', 'context', 'role',
-            'provider', 'model', 'timeout', 'middleware', 'agent', 'second_pass',
+            'provider', 'model', 'strict', 'timeout', 'middleware', 'agent', 'second_pass',
             'reason_max_chars', 'on_error', 'prompt_builder', 'decision_rule', 'details_schema',
         ];
 

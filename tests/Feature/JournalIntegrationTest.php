@@ -7,23 +7,13 @@ use Goodport\AiJournal\Models\AiInvocationStep;
 use Goodport\AiModerator\Agents\ModerationAgent;
 use Goodport\AiModerator\Facades\AiModerator;
 use Goodport\AiModerator\Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 
 final class JournalIntegrationTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('database.default', 'testing');
-        $app['config']->set('database.connections.testing', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-        ]);
         $app['config']->set('ai-journal.enabled', true);
         $app['config']->set('ai-moderator.journal.replay.enabled', true);
         $app['config']->set('ai-moderator.journal.replay.ttl', 3600);
@@ -67,6 +57,32 @@ final class JournalIntegrationTest extends TestCase
 
         $this->assertFalse(AiInvocationStep::query()->where('status', 'replayed')->exists());
         $this->assertSame(2, AiInvocationStep::query()->where('status', 'succeeded')->count());
+    }
+
+    /**
+     * A replayed response is returned before the rate limiter can wait.
+     */
+    public function test_replay_does_not_consume_rate_limit(): void
+    {
+        $this->app['config']->set('ai-resilience.limits.enabled', true);
+        $this->app['config']->set('ai-resilience.limits.default', [
+            'max_requests' => null,
+            'per_seconds' => null,
+            'min_interval_seconds' => 60,
+            'mode' => 'fail',
+            'max_wait_seconds' => 0,
+        ]);
+        $this->configureVerdictCheck();
+
+        ModerationAgent::fake([
+            ['verdict' => 'approve', 'reason' => 'Fine.', 'violations' => []],
+        ])->preventStrayPrompts();
+
+        AiModerator::check('post_body')->input(['body' => 'Hello'])->run();
+        $result = AiModerator::check('post_body')->input(['body' => 'Hello'])->run();
+
+        $this->assertTrue($result->passed());
+        $this->assertTrue(AiInvocationStep::query()->where('status', 'replayed')->exists());
     }
 
     /**

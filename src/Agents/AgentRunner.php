@@ -10,8 +10,11 @@ use Goodport\AiModerator\Prompt\DefaultPromptBuilder;
 use Goodport\AiModerator\Prompt\PromptBuilder;
 use Goodport\AiModerator\Prompt\PromptContext;
 use Goodport\AiModerator\Schema\SchemaBuilder;
+use Goodport\AiResilience\Limits\RateLimitStep;
+use Goodport\AiResilience\Retries\AgentCallRetry;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\HasMiddleware;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Throwable;
 
@@ -21,6 +24,7 @@ final class AgentRunner
         private readonly SchemaBuilder $schemaBuilder,
         private readonly DefaultPromptBuilder $defaultPromptBuilder,
         private readonly JournalReplay $journal,
+        private readonly AgentCallRetry $retry,
     ) {}
 
     public function run(
@@ -49,13 +53,15 @@ final class AgentRunner
         $startedAt = hrtime(true);
 
         try {
-            $response = $agent->prompt(
-                $userPrompt,
-                $attachments,
-                $provider,
-                $model,
-                $timeout,
-            );
+            $response = $this->retry
+                ->withAgent($agent)
+                ->prompt(
+                    $userPrompt,
+                    $attachments,
+                    $provider,
+                    $model,
+                    $timeout,
+                );
         } catch (Throwable $exception) {
             return new AgentOutcome(
                 response: null,
@@ -84,7 +90,9 @@ final class AgentRunner
     ): ModerationAgent {
         $schema = fn (JsonSchema $jsonSchema): array => $this->schemaBuilder->build($check, $jsonSchema);
 
-        return new ModerationAgent(
+        $agent = $check->config->strict ? StrictModerationAgent::class : ModerationAgent::class;
+
+        return new $agent(
             instructions: $promptBuilder->system($context),
             schema: $schema,
             middleware: $this->middleware($check),
@@ -92,13 +100,15 @@ final class AgentRunner
     }
 
     /**
+     * Replay must run before the limiter so a journaled response does not wait.
+     *
      * @return array<int, mixed>
      */
     private function middleware(CheckDefinition $check): array
     {
-        $middleware = $check->config->middleware;
+        $middleware = [];
 
-        foreach ($this->journal->middlewareFor($check) as $item) {
+        foreach ([...$this->journal->middlewareFor($check), RateLimitStep::class, ...$check->config->middleware] as $item) {
             if (! in_array($item, $middleware, true)) {
                 $middleware[] = $item;
             }
@@ -111,11 +121,11 @@ final class AgentRunner
     {
         $agent = app($agentClass);
 
-        if (! $agent instanceof Agent || ! $agent instanceof HasStructuredOutput) {
+        if (! $agent instanceof Agent || ! $agent instanceof HasStructuredOutput || ! $agent instanceof HasMiddleware) {
             throw InvalidConfigurationException::invalid(
                 $check->key(),
                 'agent',
-                'must implement Agent and HasStructuredOutput.',
+                'must implement Agent, HasStructuredOutput, and HasMiddleware.',
             );
         }
 

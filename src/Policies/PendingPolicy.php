@@ -2,6 +2,7 @@
 
 namespace Goodport\AiModerator\Policies;
 
+use Goodport\AiModerator\Audit\ModerationAuditContext;
 use Goodport\AiModerator\Input\InputResolver;
 use Goodport\AiModerator\Input\InvalidInputException;
 use Goodport\AiModerator\Results\Report;
@@ -11,6 +12,8 @@ final class PendingPolicy
     private InputResolver|array|null $input = null;
 
     private ?string $language = null;
+
+    private ?ModerationAuditContext $auditContext = null;
 
     public function __construct(
         private readonly string $key,
@@ -31,12 +34,19 @@ final class PendingPolicy
         return $this;
     }
 
+    public function audit(ModerationAuditContext $context): self
+    {
+        $this->auditContext = $context;
+
+        return $this;
+    }
+
     public function run(): Report
     {
         if ($this->input === null) {
             throw InvalidInputException::missingPolicyInput($this->key);
         }
 
-        return $this->runner->run($this->key, $this->input, $this->language);
+        return $this->runner->run($this->key, $this->input, $this->language, $this->auditContext);
     }
 }

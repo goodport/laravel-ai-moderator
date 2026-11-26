@@ -9,7 +9,7 @@ use Laravel\Ai\Contracts\HasMiddleware;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
 
-final class ModerationAgent implements Agent, HasMiddleware, HasStructuredOutput
+class ModerationAgent implements Agent, HasMiddleware, HasStructuredOutput
 {
     use Promptable;
 

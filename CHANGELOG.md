@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-26
+
+### Added
+
+- `goodport/laravel-ai-resilience` dependency and automatic rate limiting for built-in agents.
+- Automatic retries around every moderation `prompt()` call.
+- `StrictModerationAgent` and the default `strict` setting.
+- `ai_moderation_audits` table, audit model, writer, and filtered read repository.
+- `PendingCheck::audit()` and `PendingPolicy::audit()` for actor, subject, policy, and request context.
+- Audit rows for thrown failures and for skipped checks inside policies.
+
+### Changed
+
+- **Breaking:** every moderation run writes an audit row; the audit migration and database connection are now required.
+- **Breaking:** custom agents must implement `HasMiddleware` and attach replay and rate limiting themselves.
+- **Breaking:** strict structured output is enabled by default for built-in agents.
+- Middleware order is now replay, rate limiter, then configured middleware.
+- The package now owns the moderation audit migration and model.
+
 ## [1.1.0] - 2026-11-26
 
 ### Added

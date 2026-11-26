@@ -12,6 +12,7 @@ The package knows nothing about your domain models. Your application describes w
 - Laravel 12.62+ or 13.x
 - `laravel/ai` 1.4+
 - A configured AI provider in `config/ai.php`
+- A database connection for moderation audits
 
 ## Installation
 
@@ -19,10 +20,28 @@ The package knows nothing about your domain models. Your application describes w
 composer require goodport/laravel-ai-moderator
 ```
 
-Laravel discovers the service provider automatically. Publish the configuration:
+Laravel discovers the service provider automatically. Run migrations and publish the configuration:
 
 ```bash
+php artisan migrate
 php artisan vendor:publish --tag=ai-moderator-config
+```
+
+## OpenRouter
+
+OpenRouter uses the official OpenAI-compatible API:
+
+- base URL: `https://openrouter.ai/api/v1`
+- chat completions: `https://openrouter.ai/api/v1/chat/completions`
+
+Configure it as the `openrouter` provider in `config/ai.php`. The SDK already defaults to this URL; the key belongs in `OPENROUTER_API_KEY` and must not be hardcoded.
+
+```php
+'openrouter' => [
+    'driver' => 'openrouter',
+    'key' => env('OPENROUTER_API_KEY'),
+    'url' => env('OPENROUTER_URL', 'https://openrouter.ai/api/v1'),
+],
 ```
 
 ## Quick start
@@ -197,7 +216,7 @@ In queued jobs, `App::getLocale()` is the worker locale. Set the locale in the j
 
 ## Profiles
 
-Share platform context, model, middleware, and second-pass settings across checks:
+Share platform context, model, strict mode, middleware, and second-pass settings across checks:
 
 ```php
 'profiles' => [
@@ -290,6 +309,7 @@ Disabled checks are omitted from the report. With `stop_on_reject`, the run stop
 - `Result::meta()->error` contains a diagnostic string.
 - Set `on_error` to `throw` in defaults or on a check to rethrow the original exception instead.
 - Configuration and input errors always throw.
+- The resilience retry handler is applied automatically. It retries only temporary provider errors; a final failure still follows `on_error`.
 
 ## Custom checks
 
@@ -320,8 +340,84 @@ Extension points:
 - `InputResolver` — named fields for the check.
 - `PromptBuilder` — custom system prompt, user prompt, and attachments.
 - `DecisionRule` — custom decision logic.
-- `agent` — a custom `Agent` that owns its instructions and schema. The package still builds the user prompt and attachments. The check's `prompt_builder` and middleware are ignored for that pass.
+- `agent` — a custom `Agent` that owns its instructions and schema. It must implement `HasMiddleware`; the package builds the user prompt and attachments. The check's `prompt_builder` and middleware are ignored for that pass.
 - `details_schema` — one level of additional structured output for class-based checks.
+
+## Strict schema
+
+Built-in moderation agents use `#[Strict]` and send the provider a strict JSON schema. This is the default. The parser still validates the response and rejects malformed or inconsistent data.
+
+Set `strict` to `false` on a check or profile only for a provider that does not support strict structured output:
+
+```php
+'checks' => [
+    'post_body' => [
+        'strict' => false,
+        // ...
+    ],
+],
+```
+
+A provider failure caused by an unsupported strict schema follows the normal `on_error` behavior. It is never treated as approved.
+
+## Resilience, rate limits, and retries
+
+The package depends on `goodport/laravel-ai-resilience`. Limits and retries are configured in `config/ai-resilience.php`; the moderator does not duplicate those settings.
+
+```bash
+php artisan vendor:publish --tag=ai-resilience-config
+```
+
+The built-in agent middleware order is:
+
+1. journal replay;
+2. `RateLimitStep`;
+3. middleware from the check configuration.
+
+A replayed response therefore returns before the limiter can wait or consume a limit. Every retry is a separate `prompt()` call and a separate journal invocation. The retry handler does not retry agents with tools or skills or approval continuations.
+
+Custom agents supplied through `agent` must implement `HasMiddleware` and attach `ReplayRecordedStep` and `RateLimitStep` themselves. The retry handler still wraps their `prompt()` call. A custom agent without `HasMiddleware` is rejected during configuration.
+
+## Moderation audit
+
+Every completed moderation run writes one row to `ai_moderation_audits`, including skipped checks. The audit stores the final `Result`, not the raw model response. It keeps the final invocation and both pass invocation IDs when a second pass runs.
+
+The package loads its migration automatically. It is required; there is no disabled audit mode and audit write failures are not swallowed.
+
+Attach application context explicitly:
+
+```php
+use Goodport\AiModerator\Audit\ModerationAuditContext;
+
+$result = AiModerator::check('post_body')
+    ->audit(new ModerationAuditContext(
+        actorType: 'user',
+        actorId: (string) $user->id,
+        subjectType: 'post',
+        subjectId: (string) $post->id,
+        requestUrl: request()->fullUrl(),
+    ))
+    ->input(['body' => $post->body])
+    ->run();
+```
+
+The same `audit()` method is available on policies. A policy fills `policy` automatically.
+
+Read audits through the model or the repository:
+
+```php
+use Goodport\AiModerator\Audit\ModerationAuditRepository;
+
+$page = app(ModerationAuditRepository::class)->getPage([
+    'check' => 'post_body',
+    'outcome' => 'rejected',
+    'actor_type' => 'user',
+    'actor_id' => (string) $user->id,
+    'from' => now()->subWeek(),
+]);
+```
+
+Available filters: `check`, `outcome`, `policy`, `trace_id`, `subject_type`, `subject_id`, `actor_type`, `actor_id`, `from`, `to`.
 
 ## Journal and replay
 
@@ -358,7 +454,9 @@ AiModerator::check('post_body')
 
 The journal fingerprint includes `ai.check` and `ai.pass`, so separate checks and the first/second passes do not reuse each other's responses.
 
-Custom agents supplied through the `agent` option keep their own middleware. The journal still records their calls, but automatic replay is only attached to the built-in `ModerationAgent`. A custom agent can attach `ReplayRecordedStep` itself or opt out of replay.
+Remote images are identified by their URL unless the journal owns a content hash. For files that can change at the same URL, version the URL or use `fresh()` for a forced check.
+
+Custom agents must implement `HasMiddleware` and attach `ReplayRecordedStep` themselves. The journal still records their calls, but automatic replay is only attached to the built-in `ModerationAgent`.
 
 The journal package also owns capture settings, redaction, cost calculation, retention, and its own read API. Publish its config when those settings need to be changed:
 

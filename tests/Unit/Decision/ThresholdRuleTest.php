@@ -68,6 +68,7 @@ final class ThresholdRuleTest extends TestCase
                 role: 'Role.',
                 provider: null,
                 model: null,
+                strict: false,
                 timeout: null,
                 middleware: [],
                 agent: null,

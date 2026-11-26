@@ -19,6 +19,7 @@ return [
         'language' => 'auto',
         'context' => null,
         'role' => 'You are a content moderation assistant.',
+        'strict' => true,
         'reason_max_chars' => 300,
         'on_error' => 'undecided',
         'middleware' => [],

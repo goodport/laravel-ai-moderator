@@ -32,5 +32,6 @@ final readonly class CheckConfig
         public ?string $promptBuilder,
         public DecisionRule|string|null $decisionRule,
         public ?Closure $detailsSchema,
+        public bool $strict = true,
     ) {}
 }

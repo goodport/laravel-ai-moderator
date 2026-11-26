@@ -90,6 +90,7 @@ final class CheckFactory
             role: $config['role'],
             provider: $config['provider'],
             model: $config['model'],
+            strict: $config['strict'],
             timeout: $config['timeout'],
             middleware: $config['middleware'],
             agent: $config['agent'] ?? null,

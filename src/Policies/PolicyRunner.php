@@ -2,6 +2,8 @@
 
 namespace Goodport\AiModerator\Policies;
 
+use Goodport\AiModerator\Audit\ModerationAuditContext;
+use Goodport\AiModerator\Audit\ModerationAuditRecorder;
 use Goodport\AiModerator\Checks\PendingCheck;
 use Goodport\AiModerator\Config\CheckRegistry;
 use Goodport\AiModerator\Config\InvalidConfigurationException;
@@ -10,6 +12,7 @@ use Goodport\AiModerator\Decision\SecondPassMerger;
 use Goodport\AiModerator\Input\InputNormalizer;
 use Goodport\AiModerator\Input\InputResolver;
 use Goodport\AiModerator\Results\Report;
+use Goodport\AiModerator\Results\Result;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Str;
 
@@ -21,13 +24,19 @@ final class PolicyRunner
         private readonly InputNormalizer $inputNormalizer,
         private readonly CheckRunner $runner,
         private readonly SecondPassMerger $merger,
+        private readonly ModerationAuditRecorder $auditRecorder,
     ) {}
 
-    public function run(string $policy, InputResolver|array $input, ?string $language): Report
-    {
+    public function run(
+        string $policy,
+        InputResolver|array $input,
+        ?string $language,
+        ?ModerationAuditContext $auditContext = null,
+    ): Report {
         [$checks, $stopOnReject] = $this->definition($policy);
 
         $traceId = (string) Str::uuid();
+        $auditContext = $auditContext?->withPolicy($policy) ?? new ModerationAuditContext(policy: $policy);
         $results = [];
 
         foreach ($checks as $check) {
@@ -36,6 +45,13 @@ final class PolicyRunner
             }
 
             if (! $this->registry->isEnabled($check)) {
+                $this->auditRecorder->record(
+                    Result::skippedResult($check, $traceId),
+                    $auditContext,
+                    null,
+                    null,
+                );
+
                 continue;
             }
 
@@ -45,10 +61,12 @@ final class PolicyRunner
                 inputNormalizer: $this->inputNormalizer,
                 runner: $this->runner,
                 merger: $this->merger,
+                auditRecorder: $this->auditRecorder,
                 traceId: $traceId,
             ))
                 ->input($input)
                 ->language($language ?? 'auto')
+                ->audit($auditContext)
                 ->run();
 
             $results[$check] = $result;
