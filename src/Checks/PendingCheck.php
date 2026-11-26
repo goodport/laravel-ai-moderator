@@ -5,6 +5,7 @@ namespace Goodport\AiModerator\Checks;
 use Goodport\AiModerator\Audit\ModerationAuditContext;
 use Goodport\AiModerator\Audit\ModerationAuditRecorder;
 use Goodport\AiModerator\Config\CheckRegistry;
+use Goodport\AiModerator\Config\ModerationSettings;
 use Goodport\AiModerator\Decision\CheckRunner;
 use Goodport\AiModerator\Decision\SecondPassMerger;
 use Goodport\AiModerator\Decision\SecondPassTrigger;
@@ -43,6 +44,7 @@ final class PendingCheck
         private readonly CheckRunner $runner,
         private readonly SecondPassMerger $merger,
         private readonly ModerationAuditRecorder $auditRecorder,
+        private readonly ModerationSettings $settings,
         private readonly ?string $traceId = null,
     ) {}
 
@@ -76,6 +78,13 @@ final class PendingCheck
 
     public function run(): Result
     {
+        if (! $this->settings->enabled()) {
+            return Result::skippedResult(
+                $this->key,
+                $this->traceId ?? (string) Str::uuid(),
+            );
+        }
+
         $context = $this->fresh ? ['ai.journal.fresh' => true] : [];
 
         return CorrelationContext::run($context, function (): Result {

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-26
+
+### Added
+
+- Global `ai-moderator.enabled` switch; when disabled, checks and policies return `skipped` without provider calls, journal entries, or audit rows.
+- Configurable `model_role` support in defaults, profiles, checks, and second passes, resolved from `ai-moderator.model_roles`.
+- Explicit language coverage for both moderation passes and documented background-job behavior.
+
+### Changed
+
+- Profile `enabled` is now inherited by checks that do not override it.
+- Provider and model defaults no longer use `env()` fallbacks in the package config.
+
+
 ## [2.0.0] - 2026-11-26
 
 ### Added

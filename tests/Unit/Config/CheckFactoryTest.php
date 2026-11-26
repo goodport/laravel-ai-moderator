@@ -92,6 +92,21 @@ final class CheckFactoryTest extends TestCase
     }
 
     /**
+     * A profile can disable its checks when the check does not override it.
+     */
+    public function test_profile_enabled_is_inherited(): void
+    {
+        $this->setProfile('reviews', ['enabled' => false]);
+        $this->setCheck('post_body', $this->verdictCheck([
+            'profile' => 'reviews',
+        ]));
+
+        $definition = app(CheckFactory::class)->make('post_body');
+
+        $this->assertFalse($definition->enabled());
+    }
+
+    /**
      * An unknown profile is a configuration error.
      */
     public function test_unknown_profile_throws(): void

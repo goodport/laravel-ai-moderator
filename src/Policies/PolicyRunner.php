@@ -7,6 +7,7 @@ use Goodport\AiModerator\Audit\ModerationAuditRecorder;
 use Goodport\AiModerator\Checks\PendingCheck;
 use Goodport\AiModerator\Config\CheckRegistry;
 use Goodport\AiModerator\Config\InvalidConfigurationException;
+use Goodport\AiModerator\Config\ModerationSettings;
 use Goodport\AiModerator\Decision\CheckRunner;
 use Goodport\AiModerator\Decision\SecondPassMerger;
 use Goodport\AiModerator\Input\InputNormalizer;
@@ -25,6 +26,7 @@ final class PolicyRunner
         private readonly CheckRunner $runner,
         private readonly SecondPassMerger $merger,
         private readonly ModerationAuditRecorder $auditRecorder,
+        private readonly ModerationSettings $settings,
     ) {}
 
     public function run(
@@ -33,6 +35,10 @@ final class PolicyRunner
         ?string $language,
         ?ModerationAuditContext $auditContext = null,
     ): Report {
+        if (! $this->settings->enabled()) {
+            return $this->skipped($policy);
+        }
+
         [$checks, $stopOnReject] = $this->definition($policy);
 
         $traceId = (string) Str::uuid();
@@ -62,6 +68,7 @@ final class PolicyRunner
                 runner: $this->runner,
                 merger: $this->merger,
                 auditRecorder: $this->auditRecorder,
+                settings: $this->settings,
                 traceId: $traceId,
             ))
                 ->input($input)
@@ -74,6 +81,24 @@ final class PolicyRunner
             if ($stopOnReject && $result->failed()) {
                 break;
             }
+        }
+
+        return new Report($results);
+    }
+
+    public function skipped(string $policy): Report
+    {
+        [$checks] = $this->definition($policy);
+
+        $traceId = (string) Str::uuid();
+        $results = [];
+
+        foreach ($checks as $check) {
+            if (! $this->registry->has($check)) {
+                throw InvalidConfigurationException::unknownCheck($check);
+            }
+
+            $results[$check] = Result::skippedResult($check, $traceId);
         }
 
         return new Report($results);

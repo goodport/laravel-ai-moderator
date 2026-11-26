@@ -93,7 +93,7 @@ $result->state();        // passed | rejected | undecided | skipped
 $result->passed();       // true | false | null
 $result->failed();       // true only for rejected
 $result->undecided();    // true when the AI could not produce a valid decision
-$result->skipped();      // true for a disabled check
+$result->skipped();      // true for a disabled check or the global switch
 $result->reason();
 $result->violations();   // Violation[]: code, message, severity, blocking
 $result->label();        // classify checks
@@ -197,10 +197,11 @@ The model returns one label from a fixed list:
 
 The response language is resolved in this order:
 
-1. `->language('en')` on the call
+1. `->language('en')` on the check or policy call
 2. the check's `language`
 3. the profile's `language`
 4. `defaults.language` (`auto` means "not set")
+5. the application locale
 5. `App::getLocale()`
 
 ```php
@@ -212,7 +213,13 @@ $result = AiModerator::check('post_body')
 
 The package appends a final instruction to write `reason` and human-readable messages in the resolved language. It does not keep separate prompt sets per locale. Use violation codes for your UI translations instead of relying on model text.
 
-In queued jobs, `App::getLocale()` is the worker locale. Set the locale in the job or pass it explicitly with `->language()`.
+The same language is passed to the first and second pass. In queued jobs, `App::getLocale()` is the worker locale. Set the locale in the job or pass it explicitly with `->language()`; do not rely on the process locale.
+
+## Global switch
+
+`ai-moderator.enabled` is the top-level switch. It is read only from the package config and has no environment fallback.
+
+When it is `false`, every check and policy returns `skipped` without a provider call, journal entry, or moderation audit row. This takes priority over `checks.*.enabled` and profile-level settings. When it is `true`, per-check enablement works as usual.
 
 ## Profiles
 
@@ -244,6 +251,31 @@ Share platform context, model, strict mode, middleware, and second-pass settings
 
 Merge order: `defaults` → `profile` → `check`. Middleware is merged; `second_pass` is merged deeply; `input` and kind-specific blocks belong to the check.
 
+## Model roles
+
+The package does not hardcode role names. The application supplies a role map from its own config:
+
+```php
+'ai-moderator.model_roles' => [
+    'light' => ['provider' => 'openai', 'model' => 'gpt-5-mini', 'timeout' => 30],
+    'standard' => ['provider' => 'openai', 'model' => 'gpt-5'],
+    'vision' => ['provider' => 'openai', 'model' => 'gpt-5-vision'],
+],
+```
+
+The map is normally filled from an application-level `ai-models.php`. The package only reads `ai-moderator.model_roles` and does not know that file.
+
+Use `model_role` in `defaults`, a profile, or a check. Resolution works level by level:
+
+1. start with inherited `provider`, `model`, and `timeout`;
+2. apply `model_role` at the level;
+3. apply explicit `provider`, `model`, and `timeout` at the same level;
+4. move from defaults to profile to check.
+
+Only fields that are present are overridden, so a role can provide the provider and an explicit model can replace only the model. A more specific level wins over a less specific one. Exact role names are required; an unknown role is a configuration error.
+
+For `second_pass`, start from the final first-pass selection, apply `second_pass.model_role`, then explicit `second_pass.provider`, `second_pass.model`, and `second_pass.timeout`. Without any of them, the second pass uses the first-pass model. There is no global second-pass switch.
+
 ## Second opinion
 
 ```php
@@ -260,7 +292,7 @@ Merge order: `defaults` → `profile` → `check`. Middleware is merged; `second
 - `on_reject` runs the second pass only after a rejection.
 - `always` also runs after approvals.
 - `undecided` never triggers a second pass.
-- If provider or model is omitted, the first pass values are used.
+- If provider, model, role, or timeout is omitted, the corresponding first-pass value is used.
 
 Merge strategies:
 

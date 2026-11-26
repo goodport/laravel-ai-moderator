@@ -4,6 +4,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Global switch
+    |--------------------------------------------------------------------------
+    |
+    | When disabled, every check and policy returns skipped without calling
+    | the provider, writing a journal entry, or writing an audit row.
+    |
+    */
+
+    'enabled' => true,
+
+    /*
+    |--------------------------------------------------------------------------
     | Defaults
     |--------------------------------------------------------------------------
     |
@@ -12,9 +24,14 @@ return [
     |
     */
 
+    'model_roles' => [
+        //
+    ],
+
     'defaults' => [
-        'provider' => env('AI_MODERATOR_PROVIDER'),
-        'model' => env('AI_MODERATOR_MODEL'),
+        'provider' => null,
+        'model' => null,
+        'model_role' => null,
         'timeout' => 60,
         'language' => 'auto',
         'context' => null,

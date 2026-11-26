@@ -27,7 +27,10 @@ final class ConfigMerger
         'details_schema',
     ];
 
-    public function __construct(private readonly Repository $config) {}
+    public function __construct(
+        private readonly Repository $config,
+        private readonly ModelResolver $models,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $entry
@@ -69,7 +72,7 @@ final class ConfigMerger
             $entry['context'] ?? null,
         ]);
 
-        $config['enabled'] = $entry['enabled'] ?? true;
+        $config['enabled'] = $entry['enabled'] ?? $profile['enabled'] ?? true;
 
         $config['middleware'] = $this->mergeMiddleware(
             $key,
@@ -91,6 +94,23 @@ final class ConfigMerger
                 $config['decision'] ?? [],
             );
         }
+
+        $selection = $this->models->resolve($key, $defaults, $profile, $entry);
+        $config['provider'] = $selection->provider;
+        $config['model'] = $selection->model;
+        $config['timeout'] = $selection->timeout;
+
+        $secondPass = $this->models->resolveSecondPass(
+            $key,
+            $selection,
+            $config['second_pass'],
+        );
+
+        $config['second_pass'] = array_replace($config['second_pass'], [
+            'provider' => $secondPass->provider,
+            'model' => $secondPass->model,
+            'timeout' => $secondPass->timeout,
+        ]);
 
         return $config;
     }

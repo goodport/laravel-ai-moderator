@@ -109,6 +109,7 @@ final class RuntimeConfigValidator
 
         $this->assertNullableString($key, $second, 'provider', 'second_pass.provider');
         $this->assertNullableString($key, $second, 'model', 'second_pass.model');
+        $this->assertNullableString($key, $second, 'model_role', 'second_pass.model_role');
 
         if (isset($second['timeout']) && (! is_int($second['timeout']) || $second['timeout'] <= 0)) {
             throw InvalidConfigurationException::invalid($key, 'second_pass.timeout', 'must be a positive integer or null.');
@@ -116,7 +117,7 @@ final class RuntimeConfigValidator
 
         $this->assertAgent($key, $second, 'agent', 'second_pass.agent');
 
-        $unknown = array_diff(array_keys($second), ['enabled', 'trigger', 'merge', 'provider', 'model', 'timeout', 'agent']);
+        $unknown = array_diff(array_keys($second), ['enabled', 'trigger', 'merge', 'provider', 'model', 'model_role', 'timeout', 'agent']);
 
         if ($unknown !== []) {
             throw InvalidConfigurationException::invalid($key, 'second_pass.'.array_key_first($unknown), 'is not allowed.');

@@ -3,6 +3,7 @@
 namespace Goodport\AiModerator\Policies;
 
 use Goodport\AiModerator\Audit\ModerationAuditContext;
+use Goodport\AiModerator\Config\ModerationSettings;
 use Goodport\AiModerator\Input\InputResolver;
 use Goodport\AiModerator\Input\InvalidInputException;
 use Goodport\AiModerator\Results\Report;
@@ -18,6 +19,7 @@ final class PendingPolicy
     public function __construct(
         private readonly string $key,
         private readonly PolicyRunner $runner,
+        private readonly ModerationSettings $settings,
     ) {}
 
     public function input(InputResolver|array $input): self
@@ -43,6 +45,10 @@ final class PendingPolicy
 
     public function run(): Report
     {
+        if (! $this->settings->enabled()) {
+            return $this->runner->skipped($this->key);
+        }
+
         if ($this->input === null) {
             throw InvalidInputException::missingPolicyInput($this->key);
         }

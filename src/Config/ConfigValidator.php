@@ -64,6 +64,7 @@ final class ConfigValidator
         $this->assertNonEmptyString($key, $config, 'role');
         $this->assertNullableString($key, $config, 'provider');
         $this->assertNullableString($key, $config, 'model');
+        $this->assertNullableString($key, $config, 'model_role');
 
         if (isset($config['timeout']) && (! is_int($config['timeout']) || $config['timeout'] <= 0)) {
             $this->fail($key, 'timeout', 'must be a positive integer or null.');
@@ -93,7 +94,7 @@ final class ConfigValidator
     {
         $allowed = [
             'kind', 'enabled', 'input', 'instructions', 'language', 'context', 'role',
-            'provider', 'model', 'strict', 'timeout', 'middleware', 'agent', 'second_pass',
+            'provider', 'model', 'model_role', 'strict', 'timeout', 'middleware', 'agent', 'second_pass',
             'reason_max_chars', 'on_error', 'prompt_builder', 'decision_rule', 'details_schema',
         ];
 

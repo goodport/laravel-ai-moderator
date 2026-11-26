@@ -67,4 +67,12 @@ abstract class TestCase extends Orchestra
     {
         $this->app['config']->set("ai-moderator.profiles.{$key}", $profile);
     }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $roles
+     */
+    protected function setModelRoles(array $roles): void
+    {
+        $this->app['config']->set('ai-moderator.model_roles', $roles);
+    }
 }

@@ -5,6 +5,7 @@ namespace Goodport\AiModerator;
 use Goodport\AiModerator\Audit\ModerationAuditRecorder;
 use Goodport\AiModerator\Checks\PendingCheck;
 use Goodport\AiModerator\Config\CheckRegistry;
+use Goodport\AiModerator\Config\ModerationSettings;
 use Goodport\AiModerator\Decision\CheckRunner;
 use Goodport\AiModerator\Decision\SecondPassMerger;
 use Goodport\AiModerator\Input\InputNormalizer;
@@ -20,6 +21,7 @@ final class AiModeratorManager
         private readonly SecondPassMerger $merger,
         private readonly PolicyRunner $policyRunner,
         private readonly ModerationAuditRecorder $auditRecorder,
+        private readonly ModerationSettings $settings,
     ) {}
 
     public function check(string $key): PendingCheck
@@ -31,11 +33,12 @@ final class AiModeratorManager
             runner: $this->runner,
             merger: $this->merger,
             auditRecorder: $this->auditRecorder,
+            settings: $this->settings,
         );
     }
 
     public function policy(string $key): PendingPolicy
     {
-        return new PendingPolicy($key, $this->policyRunner);
+        return new PendingPolicy($key, $this->policyRunner, $this->settings);
     }
 }

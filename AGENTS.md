@@ -31,7 +31,7 @@ src/
   Agents/                      internal agent, strict agent, and agent runner
   Audit/                       audit context, recorder, read repository
   Checks/                      check contracts, definitions, pending check
-  Config/                      config merge, validation, registry
+  Config/                      config merge, model resolution, validation, registry
   Decision/                    decision rules, merger, check runner
   Input/                       input resolver, normalization, truncation
   Journal/                     journal replay integration
@@ -70,12 +70,20 @@ tests/
 
 ## Moderation audit
 
-- `PendingCheck::run()` writes a final audit row through `ModerationAuditRecorder` for every outcome, including `skipped` and thrown failures.
+- `PendingCheck::run()` writes a final audit row through `ModerationAuditRecorder` for every outcome, including `skipped` and thrown failures, unless the global switch is disabled.
 - `ModerationAuditContext` carries policy, actor, subject, and request URL. A policy fills its own policy key.
 - The audit keeps the selected `invocation_id`, both `first_invocation_id` and `second_invocation_id`, the final result fields, and the selected provider/model.
 - Audit write failures are not swallowed. The table and migration are part of this package.
 - `ModerationAuditRepository::getPage()` provides filters and pagination for an admin layer.
 - A disabled check inside a policy is audited as `skipped` without being added to the report.
+
+## Model roles
+
+`ModelResolver` resolves the inherited provider/model/timeout for each check and second pass. At each level it applies `model_role`, then explicit `provider`, `model`, and `timeout`; check overrides profile overrides defaults. Roles are read from `ai-moderator.model_roles`, are exact names, and unknown or malformed roles throw `InvalidConfigurationException`.
+
+## Global switch
+
+`ai-moderator.enabled` is the top-level switch. When false, checks and policies return `skipped` before input resolution, provider calls, journal writes, and audit writes. It has priority over check and profile settings. The value is read only from package config, without an environment fallback.
 
 ## Rules
 
